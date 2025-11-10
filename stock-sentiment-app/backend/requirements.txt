@@ -17,7 +17,7 @@ newsapi-python==0.2.7
 praw==7.7.1
 finnhub-python==2.4.20
 alpha-vantage==2.3.1
-sec-edgar-api==0.1.7
+sec-edgar-api==1.1.0
 yake==0.4.8
 vaderSentiment==3.3.2
 redis==4.6.0
