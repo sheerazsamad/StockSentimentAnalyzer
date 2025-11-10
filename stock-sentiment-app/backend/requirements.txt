@@ -1,6 +1,6 @@
 flask==2.3.3
 flask-cors==4.0.0
-# yfinance removed - using Finnhub and Alpha Vantage instead
+gunicorn==21.2.0
 pandas==2.0.3
 numpy==1.24.3
 transformers==4.33.2
