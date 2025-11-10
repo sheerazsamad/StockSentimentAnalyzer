@@ -2530,8 +2530,7 @@ class RealTimeMonitor:
         print(f"    Grade: {analysis['sentiment']['grade']}")
         print(f"    Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}")
 
-# Enhanced main execution function
-# Initialize Flask app
+# Flask app initialization (for standalone use)
 app = Flask(__name__)
 CORS(app)  # This is crucial for allowing your frontend to access the backend
 
@@ -2654,16 +2653,6 @@ def run_flask_app():
 
 async def enhanced_main():
     """Enhanced main execution with full feature set"""
-    # try:
-    #     with open('config.json', 'r') as f:
-    #         config = json.load(f)
-    #     print("✅ Configuration loaded successfully from config.json")
-    # except FileNotFoundError:
-    #     print("❌ Error: 'config.json' not found. Please create this file with your API keys.")
-    #     return
-    # except json.JSONDecodeError:
-    #     print("❌ Error: 'config.json' is not a valid JSON file. Please check its formatting.")
-    #     return
     # Configuration - Load from config.json or environment variables
     import os
     import json
@@ -2786,7 +2775,6 @@ async def enhanced_main():
         logger.error(f"Analysis error: {e}")
         print(f"❌ Analysis failed: {e}")
 
-# Entry point
 if __name__ == "__main__":
     # Run the enhanced analyzer
     try:
