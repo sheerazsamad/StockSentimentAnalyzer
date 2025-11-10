@@ -1,0 +1,41 @@
+# Ignore API keys and sensitive configuration files
+config.json
+.env
+.env.local
+
+# Ignore database files created by the application
+*.db
+*.sqlite
+*.sqlite3
+
+# Ignore log files
+*.log
+sentiment_analyzer.log
+
+# Ignore Python-specific files and environments
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+venv/
+.venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+
+# Ignore analysis output files
+enhanced_sentiment_analysis_*.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
