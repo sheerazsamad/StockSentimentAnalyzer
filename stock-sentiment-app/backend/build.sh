@@ -2,9 +2,12 @@
 # Build script for Render deployment
 set -e
 
-# Upgrade pip first
-pip install --upgrade pip setuptools wheel
+echo "🔧 Installing build tools first..."
+# Install setuptools and wheel FIRST, before anything else
+python -m pip install --upgrade pip
+python -m pip install --no-cache-dir setuptools>=65.5.0 wheel
 
-# Install requirements
-pip install -r requirements.txt
+echo "📦 Installing requirements..."
+# Now install everything else
+python -m pip install --no-cache-dir -r requirements.txt
 
