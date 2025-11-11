@@ -105,14 +105,18 @@ def analyze_stocks():
         results = []
         for symbol in symbols:
             try:
+                logger.info(f"About to call analyze_stock_comprehensive for {symbol}")
                 # Add timeout to prevent hanging (90 seconds per symbol)
                 async def analyze_with_timeout():
+                    logger.info(f"Inside analyze_with_timeout for {symbol}")
                     return await sentiment_analyzer.analyze_stock_comprehensive(symbol.upper())
                 
                 try:
+                    logger.info(f"Starting async execution for {symbol}")
                     result = loop.run_until_complete(
                         asyncio.wait_for(analyze_with_timeout(), timeout=90.0)
                     )
+                    logger.info(f"Async execution completed for {symbol}")
                     
                     # Transform the result to match frontend expectations
                     transformed_result = transform_result(result)

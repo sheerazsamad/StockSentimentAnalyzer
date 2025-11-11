@@ -38,8 +38,8 @@ const StockSentimentApp = () => {
     setError('');
     
     try {
-      // API call to Render backend
-      const apiUrl = process.env.REACT_APP_API_URL || 'https://stocksentimentanalyzer.onrender.com';
+      // API call - use localhost for local dev, Render URL for production
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
       
       // Create AbortController for timeout (2 minutes)
       const controller = new AbortController();
