@@ -106,7 +106,7 @@ def analyze_stocks():
         for symbol in symbols:
             try:
                 logger.info(f"About to call analyze_stock_comprehensive for {symbol}")
-                # Add timeout to prevent hanging (90 seconds per symbol)
+                # Add timeout to prevent hanging (60 seconds per symbol - optimized for free tier)
                 async def analyze_with_timeout():
                     logger.info(f"Inside analyze_with_timeout for {symbol}")
                     return await sentiment_analyzer.analyze_stock_comprehensive(symbol.upper())
@@ -114,7 +114,7 @@ def analyze_stocks():
                 try:
                     logger.info(f"Starting async execution for {symbol}")
                     result = loop.run_until_complete(
-                        asyncio.wait_for(analyze_with_timeout(), timeout=90.0)
+                        asyncio.wait_for(analyze_with_timeout(), timeout=60.0)
                     )
                     logger.info(f"Async execution completed for {symbol}")
                     
@@ -123,7 +123,7 @@ def analyze_stocks():
                     results.append(transformed_result)
                     
                 except asyncio.TimeoutError:
-                    logger.error(f"Analysis timeout for {symbol} after 90 seconds")
+                    logger.error(f"Analysis timeout for {symbol} after 60 seconds")
                     results.append(create_fallback_result(symbol, "Analysis timed out - API calls may be slow"))
                     
             except Exception as e:

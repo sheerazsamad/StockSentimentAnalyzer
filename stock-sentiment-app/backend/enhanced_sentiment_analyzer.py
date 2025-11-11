@@ -69,7 +69,7 @@ class CacheManager:
     def __init__(self, use_redis=False):
         self.use_redis = use_redis
         self.local_cache = {}
-        self.cache_ttl = 3600  # 1 hour default TTL
+        self.cache_ttl = 7200  # 2 hours default TTL (optimized for free tier)
         
         if use_redis:
             try:
@@ -774,10 +774,9 @@ class RealTimeDataCollector:
         if hasattr(self, 'news_client'):
             try:
                 logger.info(f"Starting NewsAPI collection for {symbol}")
-                # More specific search query
+                # Optimized: Reduced queries for free tier (2 instead of 3)
                 search_queries = [
                     f'"{symbol}" AND (earnings OR revenue OR stock OR price)',
-                    f'"{symbol}" AND (financial OR quarterly OR results)',
                     symbol  # Fallback simple search
                 ]
                 
@@ -822,7 +821,7 @@ class RealTimeDataCollector:
                     to=datetime.now(timezone.utc).strftime('%Y-%m-%d')
                 )
                 
-                for article in news_data[:15]:
+                for article in news_data[:10]:  # Reduced for free tier optimization
                     articles.append({
                         'title': article['headline'],
                         'content': article.get('summary', ''),
@@ -847,13 +846,14 @@ class RealTimeDataCollector:
             return posts
         
         try:
-            subreddits = ['investing', 'stocks', 'SecurityAnalysis', 'StockMarket', 'wallstreetbets']
+            # Optimized: Reduced subreddits for free tier (3 instead of 5)
+            subreddits = ['investing', 'stocks', 'StockMarket']
             
             for subreddit_name in subreddits:
                 subreddit = self.reddit_client.subreddit(subreddit_name)
                 
-                # Search for symbol mentions
-                for submission in subreddit.search(symbol, time_filter='week', limit=20):
+                # Search for symbol mentions (reduced limit for free tier)
+                for submission in subreddit.search(symbol, time_filter='week', limit=10):
                     posts.append({
                         'title': submission.title,
                         'content': submission.selftext,
@@ -1232,7 +1232,7 @@ class EnhancedStockSentimentAnalyzer:
         """Comprehensive stock analysis with all enhancements"""
         logger.info(f"Starting comprehensive analysis for {symbol}")
         
-        # Check cache first
+        # Check cache first (optimized: cache by hour for 2-hour TTL)
         cache_key = f"analysis_{symbol}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H')}"
         cached_result = self.cache_manager.get(cache_key)
         if cached_result:
@@ -1240,13 +1240,13 @@ class EnhancedStockSentimentAnalyzer:
             return cached_result
         
         try:
-            # Collect data with logging
+            # Collect data with logging (optimized for free tier - reduced limits)
             logger.info(f"Collecting news data for {symbol}...")
-            raw_news_articles = await self.data_collector.collect_news_data(symbol, max_articles=100)
+            raw_news_articles = await self.data_collector.collect_news_data(symbol, max_articles=30)
             logger.info(f"Collected {len(raw_news_articles)} news articles for {symbol}")
             
             logger.info(f"Collecting Reddit data for {symbol}...")
-            reddit_posts = self.data_collector.collect_reddit_data(symbol, limit=50)
+            reddit_posts = self.data_collector.collect_reddit_data(symbol, limit=20)
             logger.info(f"Collected {len(reddit_posts)} Reddit posts for {symbol}")
             
             logger.info(f"Getting stock information for {symbol}...")
