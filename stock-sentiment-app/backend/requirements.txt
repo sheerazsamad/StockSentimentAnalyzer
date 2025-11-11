@@ -21,6 +21,7 @@ sec-edgar-api==1.1.0
 yake==0.4.8
 vaderSentiment==3.3.2
 redis==4.6.0
+influxdb-client==1.40.0
 requests==2.31.0
 urllib3==2.0.4
 python-dateutil==2.8.2
