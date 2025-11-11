@@ -38,8 +38,9 @@ const StockSentimentApp = () => {
     setError('');
     
     try {
-      // Mock API call - replace with actual backend endpoint
-      const response = await fetch('http://localhost:5000/api/analyze', {
+      // API call to Render backend
+      const apiUrl = process.env.REACT_APP_API_URL || 'https://stocksentimentanalyzer.onrender.com';
+      const response = await fetch(`${apiUrl}/api/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
