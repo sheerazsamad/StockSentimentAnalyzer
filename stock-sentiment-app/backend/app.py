@@ -105,17 +105,26 @@ def analyze_stocks():
         results = []
         for symbol in symbols:
             try:
-                # Analyze each symbol individually to handle errors gracefully
-                result = loop.run_until_complete(
-                    sentiment_analyzer.analyze_stock_comprehensive(symbol.upper())
-                )
+                # Add timeout to prevent hanging (90 seconds per symbol)
+                async def analyze_with_timeout():
+                    return await sentiment_analyzer.analyze_stock_comprehensive(symbol.upper())
                 
-                # Transform the result to match frontend expectations
-                transformed_result = transform_result(result)
-                results.append(transformed_result)
-                
+                try:
+                    result = loop.run_until_complete(
+                        asyncio.wait_for(analyze_with_timeout(), timeout=90.0)
+                    )
+                    
+                    # Transform the result to match frontend expectations
+                    transformed_result = transform_result(result)
+                    results.append(transformed_result)
+                    
+                except asyncio.TimeoutError:
+                    logger.error(f"Analysis timeout for {symbol} after 90 seconds")
+                    results.append(create_fallback_result(symbol, "Analysis timed out - API calls may be slow"))
+                    
             except Exception as e:
                 logger.error(f"Error analyzing {symbol}: {str(e)}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
                 # Add a fallback result for failed analysis
                 results.append(create_fallback_result(symbol, str(e)))
         
