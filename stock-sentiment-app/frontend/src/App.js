@@ -40,22 +40,36 @@ const StockSentimentApp = () => {
     try {
       // API call to Render backend
       const apiUrl = process.env.REACT_APP_API_URL || 'https://stocksentimentanalyzer.onrender.com';
+      
+      // Create AbortController for timeout (2 minutes)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes
+      
       const response = await fetch(`${apiUrl}/api/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ symbols: validSymbols })
+        body: JSON.stringify({ symbols: validSymbols }),
+        signal: controller.signal
       });
       
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        throw new Error('Analysis failed');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Analysis failed with status ${response.status}`);
       }
       
       const data = await response.json();
       setResults(data);
     } catch (err) {
-      setError('Failed to analyze stocks. Please check your backend connection.');
+      if (err.name === 'AbortError') {
+        setError('Analysis is taking too long. Please try again with fewer symbols.');
+      } else {
+        setError(`Failed to analyze stocks: ${err.message || 'Please check your backend connection.'}`);
+      }
+      console.error('Analysis error:', err);
     } finally {
       setLoading(false);
     }
