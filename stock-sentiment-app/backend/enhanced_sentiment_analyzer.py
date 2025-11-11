@@ -773,6 +773,7 @@ class RealTimeDataCollector:
         # NewsAPI
         if hasattr(self, 'news_client'):
             try:
+                logger.info(f"Starting NewsAPI collection for {symbol}")
                 # More specific search query
                 search_queries = [
                     f'"{symbol}" AND (earnings OR revenue OR stock OR price)',
@@ -782,6 +783,7 @@ class RealTimeDataCollector:
                 
                 for query in search_queries:
                     try:
+                        logger.info(f"NewsAPI query: {query}")
                         news_data = self.news_client.get_everything(
                             q=query,
                             language='en',
@@ -789,6 +791,7 @@ class RealTimeDataCollector:
                             page_size=min(20, max_articles // len(search_queries)),
                             domains='reuters.com,bloomberg.com,wsj.com,marketwatch.com,cnbc.com,forbes.com'
                         )
+                        logger.info(f"NewsAPI returned {len(news_data.get('articles', []))} articles for query: {query}")
                         
                         for article in news_data.get('articles', []):
                             articles.append({
@@ -1237,12 +1240,18 @@ class EnhancedStockSentimentAnalyzer:
             return cached_result
         
         try:
-            # Collect data
+            # Collect data with logging
+            logger.info(f"Collecting news data for {symbol}...")
             raw_news_articles = await self.data_collector.collect_news_data(symbol, max_articles=100)
-            reddit_posts = self.data_collector.collect_reddit_data(symbol, limit=50)
+            logger.info(f"Collected {len(raw_news_articles)} news articles for {symbol}")
             
-            # Get stock information
+            logger.info(f"Collecting Reddit data for {symbol}...")
+            reddit_posts = self.data_collector.collect_reddit_data(symbol, limit=50)
+            logger.info(f"Collected {len(reddit_posts)} Reddit posts for {symbol}")
+            
+            logger.info(f"Getting stock information for {symbol}...")
             stock_info = self._get_enhanced_stock_info(symbol)
+            logger.info(f"Stock info retrieved for {symbol}")
             
             # Analyze news sentiment with advanced filtering (pass symbol for better filtering)
             news_sentiment = self._analyze_news_sentiment_advanced(raw_news_articles, symbol)
