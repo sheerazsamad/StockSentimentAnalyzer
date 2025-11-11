@@ -203,24 +203,25 @@ class DatabaseManager:
 class AdvancedNLPProcessor:
     """Advanced NLP processing using transformers and domain-specific models"""
     
-    def __init__(self):
+    def __init__(self, lightweight_mode=False):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        logger.info(f"Using device: {self.device}")
+        self.lightweight_mode = lightweight_mode  # For free tier memory optimization
+        logger.info(f"Using device: {self.device}, lightweight_mode: {lightweight_mode}")
         
-        # Initialize models
+        # Initialize models (lazy loading - only load when needed)
         self.finbert_model = None
         self.roberta_model = None
         self.aspect_model = None
         self.ner_model = None
+        self._models_loaded = False
         
-        self.load_models()
+        # Only load models if not in lightweight mode
+        if not self.lightweight_mode:
+            self.load_models()
         
-        # Initialize other NLP tools
-        try:
-            self.nlp = spacy.load("en_core_web_sm")
-        except OSError:
-            logger.warning("spaCy model not found, some features will be limited")
-            self.nlp = None
+        # Initialize other NLP tools (lazy load spaCy for memory optimization)
+        self.nlp = None
+        self._spacy_loaded = False
         
         self.vader_analyzer = SentimentIntensityAnalyzer()
         
@@ -268,9 +269,18 @@ class AdvancedNLPProcessor:
             'partnerships': ['partnership', 'merger', 'acquisition', 'alliance', 'collaboration', 'deal']
         }
     def load_models(self):
-        """Load pre-trained transformer models"""
+        """Load pre-trained transformer models (lazy loading for memory optimization)"""
+        if self._models_loaded:
+            return
+        
+        if self.lightweight_mode:
+            logger.info("Lightweight mode: skipping heavy transformer models")
+            self._models_loaded = True
+            return
+        
         try:
-            # FinBERT for financial sentiment
+            # FinBERT for financial sentiment (only load if not in lightweight mode)
+            # Note: Skipping heavy models in lightweight mode to save memory for free tier
             self.finbert_model = pipeline(
                 "sentiment-analysis",
                 model="ProsusAI/finbert",
@@ -280,20 +290,45 @@ class AdvancedNLPProcessor:
         except Exception as e:
             logger.warning(f"Could not load FinBERT: {e}")
         
+        # Skip RoBERTa in lightweight mode to save memory
+        if not self.lightweight_mode:
+            try:
+                # RoBERTa for general sentiment
+                self.roberta_model = pipeline(
+                    "sentiment-analysis",
+                    model="cardiffnlp/twitter-roberta-base-sentiment-latest",
+                    device=0 if self.device == "cuda" else -1
+                )
+                logger.info("RoBERTa model loaded")
+            except Exception as e:
+                logger.warning(f"Could not load RoBERTa: {e}")
+        
+        self._models_loaded = True
+    
+    def _load_spacy_if_needed(self):
+        """Lazy load spaCy model only when needed"""
+        if self._spacy_loaded:
+            return
+        
+        if self.lightweight_mode:
+            logger.info("Lightweight mode: skipping spaCy model")
+            self._spacy_loaded = True
+            return
+        
         try:
-            # RoBERTa for general sentiment
-            self.roberta_model = pipeline(
-                "sentiment-analysis",
-                model="cardiffnlp/twitter-roberta-base-sentiment-latest",
-                device=0 if self.device == "cuda" else -1
-            )
-            logger.info("RoBERTa model loaded")
-        except Exception as e:
-            logger.warning(f"Could not load RoBERTa: {e}")
+            self.nlp = spacy.load("en_core_web_sm")
+            logger.info("spaCy model loaded")
+        except OSError:
+            logger.warning("spaCy model not found, some features will be limited")
+            self.nlp = None
+        self._spacy_loaded = True
     
     def extract_entities(self, text: str) -> Dict[str, List[str]]:
         """Extract named entities from text"""
         entities = {'PERSON': [], 'ORG': [], 'MONEY': [], 'PERCENT': []}
+        
+        # Lazy load spaCy if needed
+        self._load_spacy_if_needed()
         
         if self.nlp:
             doc = self.nlp(text)
@@ -358,6 +393,10 @@ class AdvancedNLPProcessor:
             pass
         
         # FinBERT analysis
+        # Lazy load models if needed
+        if not self.lightweight_mode:
+            self.load_models()
+        
         if self.finbert_model:
             try:
                 finbert_result = self.finbert_model(text[:512])  # Truncate for BERT
@@ -1188,7 +1227,9 @@ class EnhancedStockSentimentAnalyzer:
         # Initialize components
         self.cache_manager = CacheManager(use_redis=self.config.get('use_redis', False))
         self.db_manager = DatabaseManager(self.config.get('db_path', 'sentiment_data.db'))
-        self.nlp_processor = AdvancedNLPProcessor()
+        # Enable lightweight mode for free tier (saves memory by skipping heavy ML models)
+        lightweight_mode = self.config.get('lightweight_mode', True)  # Default to True for free tier
+        self.nlp_processor = AdvancedNLPProcessor(lightweight_mode=lightweight_mode)
         self.data_collector = RealTimeDataCollector(self.config.get('api_keys', {}))
         self.anomaly_detector = AnomalyDetector()
         self.predictive_model = PredictiveModel()
