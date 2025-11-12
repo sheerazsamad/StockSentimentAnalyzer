@@ -17,8 +17,14 @@ app = Flask(__name__)
 
 # Configure database
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or \
+database_url = os.environ.get('DATABASE_URL') or \
     'sqlite:///' + os.path.join(basedir, 'users.db')
+
+# Render uses postgres:// but SQLAlchemy 2.0+ requires postgresql://
+if database_url and database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Configure JWT
@@ -28,10 +34,23 @@ app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
 app.config['JWT_HEADER_NAME'] = 'Authorization'
 app.config['JWT_HEADER_TYPE'] = 'Bearer'
 
+# Configure logging (needed before database initialization)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Initialize extensions
 db.init_app(app)
 bcrypt.init_app(app)
 jwt = JWTManager(app)
+
+# Initialize database tables (runs on app startup, including with gunicorn)
+with app.app_context():
+    try:
+        db.create_all()
+        logger.info("Database tables initialized")
+    except Exception as e:
+        logger.error(f"Error initializing database: {e}")
+
 # Configure CORS to allow preflight OPTIONS requests
 # This must be configured before JWT to allow OPTIONS requests to bypass authentication
 # We handle OPTIONS manually, so disable automatic_options
@@ -82,10 +101,6 @@ def missing_token_callback(error):
 @jwt.needs_fresh_token_loader
 def token_not_fresh_callback(jwt_header, jwt_payload):
     return jsonify({'error': 'Token is not fresh'}), 401
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Initialize the analyzer once when the server starts
 analyzer = None
