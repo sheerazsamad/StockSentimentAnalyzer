@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, BarChart3, Shield, Zap, ArrowRight, Check } from 'lucide-react';
+import { TrendingUp, BarChart3, Shield, Zap, ArrowRight } from 'lucide-react';
 
 const Home = ({ onGetStarted }) => {
   const features = [

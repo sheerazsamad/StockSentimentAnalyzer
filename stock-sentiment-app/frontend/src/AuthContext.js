@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 
 const AuthContext = createContext(null);
 
@@ -17,35 +17,7 @@ export const AuthProvider = ({ children }) => {
 
   const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
-  // Check for existing token on mount
-  useEffect(() => {
-    const storedToken = localStorage.getItem('auth_token');
-    if (storedToken) {
-      setToken(storedToken);
-      // Verify token and get user info
-      fetchUser(storedToken);
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  // Update token state when localStorage changes (for cross-tab sync)
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === 'auth_token') {
-        if (e.newValue) {
-          setToken(e.newValue);
-        } else {
-          setToken(null);
-          setUser(null);
-        }
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
-
-  const fetchUser = async (authToken) => {
+  const fetchUser = useCallback(async (authToken) => {
     try {
       const response = await fetch(`${apiUrl}/api/me`, {
         headers: {
@@ -84,7 +56,35 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiUrl]);
+
+  // Check for existing token on mount
+  useEffect(() => {
+    const storedToken = localStorage.getItem('auth_token');
+    if (storedToken) {
+      setToken(storedToken);
+      // Verify token and get user info
+      fetchUser(storedToken);
+    } else {
+      setLoading(false);
+    }
+  }, [fetchUser]);
+
+  // Update token state when localStorage changes (for cross-tab sync)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'auth_token') {
+        if (e.newValue) {
+          setToken(e.newValue);
+        } else {
+          setToken(null);
+          setUser(null);
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   const login = async (email, password) => {
     try {

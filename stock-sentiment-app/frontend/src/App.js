@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, TrendingUp, TrendingDown, Minus, AlertCircle, Clock, BarChart3, ExternalLink, LogOut, User, Heart, Star, Eye, Plus, X, LayoutDashboard } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, Minus, AlertCircle, Clock, BarChart3, ExternalLink, LogOut, User, Star, Eye, Plus, X, LayoutDashboard } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import Login from './Login';
 import Register from './Register';
