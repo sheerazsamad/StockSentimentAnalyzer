@@ -125,9 +125,10 @@ const SentimentChart = ({ history, symbol }) => {
         },
         ticks: {
           color: 'rgb(156, 163, 175)',
+          stepSize: 0.1,
         },
-        min: -0.5,
-        max: 0.5,
+        min: -1.2,
+        max: 1.2,
       },
       y1: {
         type: 'linear',
@@ -143,6 +144,7 @@ const SentimentChart = ({ history, symbol }) => {
         },
         ticks: {
           color: 'rgb(156, 163, 175)',
+          stepSize: 0.1,
         },
         min: 0,
         max: 1,
@@ -151,7 +153,7 @@ const SentimentChart = ({ history, symbol }) => {
   };
 
   return (
-    <div className="w-full" style={{ height: '400px' }}>
+    <div className="w-full" style={{ height: '500px' }}>
       <Line data={data} options={options} />
     </div>
   );
