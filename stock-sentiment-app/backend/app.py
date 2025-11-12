@@ -27,16 +27,20 @@ if database_url and database_url.startswith('postgres://'):
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Configure logging (needed before JWT and database initialization)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Configure JWT
-app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY') or 'your-secret-key-change-in-production'
+jwt_secret_key = os.environ.get('JWT_SECRET_KEY') or 'your-secret-key-change-in-production'
+if jwt_secret_key == 'your-secret-key-change-in-production':
+    logger.warning("⚠️  WARNING: Using default JWT_SECRET_KEY! Set JWT_SECRET_KEY environment variable for production.")
+    logger.warning("⚠️  This will cause all user logins to be reset on each deployment!")
+app.config['JWT_SECRET_KEY'] = jwt_secret_key
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
 # Allow OPTIONS requests to bypass JWT (needed for CORS preflight)
 app.config['JWT_HEADER_NAME'] = 'Authorization'
 app.config['JWT_HEADER_TYPE'] = 'Bearer'
-
-# Configure logging (needed before database initialization)
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Initialize extensions
 db.init_app(app)

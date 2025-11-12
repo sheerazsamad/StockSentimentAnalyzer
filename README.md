@@ -150,6 +150,38 @@ npm start
 
 The frontend will start on `http://localhost:3000` and automatically open in your browser.
 
+### Running with AI Models (Disable Lightweight Mode)
+
+By default, the application runs in **lightweight mode** using only VADER (a rule-based sentiment analyzer) to optimize memory usage. To enable AI-powered sentiment analysis using FinBERT and RoBERTa transformer models:
+
+1. **Edit your `config.json` file** in `stock-sentiment-app/backend/`:
+   ```json
+   {
+     "news_api": "YOUR_NEWS_API_KEY_HERE",
+     "reddit": {
+       "client_id": "YOUR_REDDIT_CLIENT_ID_HERE",
+       "client_secret": "YOUR_REDDIT_CLIENT_SECRET_HERE",
+       "user_agent": "StockAnalyzer"
+     },
+     "finnhub": "YOUR_FINNHUB_API_KEY_HERE",
+     "alpha_vantage": "YOUR_ALPHA_VANTAGE_API_KEY_HERE",
+     "lightweight_mode": false
+   }
+   ```
+
+2. **Restart the backend server**:
+   ```bash
+   cd stock-sentiment-app/backend
+   python3 app.py
+   ```
+
+**Note**: 
+- Enabling AI models requires **~1-1.5 GB of RAM** (FinBERT ~500-700MB, RoBERTa ~500-700MB)
+- First startup will download the models (~1.5 GB total) - this may take a few minutes
+- Analysis will be slower but more accurate
+- Recommended for local development with sufficient memory
+- **Not recommended for Render free tier** (512MB RAM limit)
+
 ## Usage
 
 1. Open the application in your browser (http://localhost:3000)
