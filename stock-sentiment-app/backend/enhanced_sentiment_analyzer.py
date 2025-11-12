@@ -1588,6 +1588,7 @@ class EnhancedStockSentimentAnalyzer:
                 'quality_score': quality_score,
                 'relevance_score': relevance_score,
                 'source': article.get('source', ''),
+                'url': article.get('url', ''),  # Add URL for source linking
                 'timestamp': article.get('timestamp', datetime.now(timezone.utc)),
                 'keywords': clean_keywords,
                 'entities': entities

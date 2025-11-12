@@ -50,6 +50,29 @@
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:5000
 
+7. **Create an Account**
+   - When you first open the app, you'll see a login screen
+   - Click "Sign up" to create a new account with your email and password
+   - After registration, you'll be automatically logged in
+
+## Authentication Setup
+
+The application now requires user accounts. Users can register and login with email and password.
+
+**First time setup:**
+- The database (`users.db`) will be automatically created when you first run the backend
+- No additional setup needed for development
+
+**Production setup:**
+- Set a secure JWT secret key as an environment variable:
+  ```bash
+  export JWT_SECRET_KEY="your-very-secure-random-secret-key-here"
+  ```
+- For production, use a proper database (PostgreSQL, MySQL) instead of SQLite:
+  ```bash
+  export DATABASE_URL="postgresql://user:password@localhost/dbname"
+  ```
+
 ## Environment Variables (Alternative to config.json)
 
 Instead of using `config.json`, you can set environment variables:
@@ -61,6 +84,7 @@ export REDDIT_CLIENT_SECRET="your_secret"
 export REDDIT_USER_AGENT="StockAnalyzer"
 export FINNHUB_API_KEY="your_key"
 export ALPHA_VANTAGE_API_KEY="your_key"
+export JWT_SECRET_KEY="your-secure-secret-key"  # Required for authentication
 ```
 
 ## Troubleshooting
@@ -68,4 +92,5 @@ export ALPHA_VANTAGE_API_KEY="your_key"
 - **Backend won't start**: Check that all dependencies are installed and API keys are set
 - **Frontend can't connect**: Ensure backend is running on port 5000
 - **API errors**: Verify your API keys are correct and not rate-limited
+
 
