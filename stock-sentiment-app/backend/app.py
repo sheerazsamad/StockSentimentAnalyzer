@@ -11,7 +11,7 @@ from email_validator import validate_email, EmailNotValidError
 
 # Import your existing analyzer
 from enhanced_sentiment_analyzer import EnhancedStockSentimentAnalyzer
-from models import db, bcrypt, User, FavoriteStock, Watchlist, WatchlistStock
+from models import db, bcrypt, User, FavoriteStock, Watchlist, WatchlistStock, AnalysisHistory
 
 app = Flask(__name__)
 
@@ -352,6 +352,48 @@ def analyze_stocks():
                 results.append(create_fallback_result(symbol, str(e)))
         
         loop.close()
+        
+        # Save analysis results to database
+        try:
+            now = datetime.now(timezone.utc)
+            today_start = datetime.combine(now.date(), datetime.min.time()).replace(tzinfo=timezone.utc)
+            today_end = datetime.combine(now.date(), datetime.max.time()).replace(tzinfo=timezone.utc)
+            
+            for result in results:
+                symbol = result.get('symbol', '').upper()
+                sentiment_data = result.get('sentiment', {})
+                sentiment_score = float(sentiment_data.get('overall_score', 0))
+                confidence = float(sentiment_data.get('confidence', 0))
+                grade = str(sentiment_data.get('grade', 'N/A'))
+                
+                # Check if there's already an entry for today with the same sentiment and confidence
+                existing_entry = AnalysisHistory.query.filter(
+                    AnalysisHistory.user_id == user_id_int,
+                    AnalysisHistory.symbol == symbol,
+                    AnalysisHistory.timestamp >= today_start,
+                    AnalysisHistory.timestamp <= today_end,
+                    db.func.abs(AnalysisHistory.sentiment - sentiment_score) < 0.001,
+                    db.func.abs(AnalysisHistory.confidence - confidence) < 0.001
+                ).first()
+                
+                # Only add if it's not a duplicate
+                if not existing_entry:
+                    analysis_entry = AnalysisHistory(
+                        user_id=user_id_int,
+                        symbol=symbol,
+                        timestamp=now,
+                        sentiment=sentiment_score,
+                        confidence=confidence,
+                        grade=grade
+                    )
+                    db.session.add(analysis_entry)
+            
+            db.session.commit()
+            logger.info(f"Saved {len(results)} analysis results to database for user {user_id_int}")
+        except Exception as e:
+            logger.error(f"Error saving analysis history: {e}")
+            db.session.rollback()
+            # Don't fail the request if history save fails
         
         # Return results in expected format
         response = {
@@ -756,6 +798,85 @@ def remove_stock_from_watchlist(watchlist_id, symbol):
         db.session.rollback()
         return jsonify({'error': f'Failed to remove stock from watchlist: {str(e)}'}), 500
 
+# Analysis History Endpoints
+@app.route('/api/analysis-history', methods=['GET'])
+@jwt_required()
+def get_analysis_history():
+    """Get all analysis history for the current user"""
+    try:
+        user_id = get_jwt_identity()
+        user_id_int = int(user_id) if isinstance(user_id, str) else user_id
+        
+        # Get all analysis history entries for the user, ordered by timestamp descending
+        history_entries = AnalysisHistory.query.filter(
+            AnalysisHistory.user_id == user_id_int
+        ).order_by(AnalysisHistory.timestamp.desc()).all()
+        
+        # Group by symbol
+        history_by_symbol = {}
+        for entry in history_entries:
+            symbol = entry.symbol
+            if symbol not in history_by_symbol:
+                history_by_symbol[symbol] = []
+            history_by_symbol[symbol].append(entry.to_dict())
+        
+        return jsonify({
+            'history': history_by_symbol
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error fetching analysis history: {str(e)}")
+        return jsonify({'error': f'Failed to fetch analysis history: {str(e)}'}), 500
+
+@app.route('/api/analysis-history/<symbol>', methods=['DELETE'])
+@jwt_required()
+def delete_stock_history(symbol):
+    """Delete analysis history for a specific stock"""
+    try:
+        user_id = get_jwt_identity()
+        user_id_int = int(user_id) if isinstance(user_id, str) else user_id
+        
+        # Delete all history entries for this user and symbol
+        deleted_count = AnalysisHistory.query.filter(
+            AnalysisHistory.user_id == user_id_int,
+            AnalysisHistory.symbol == symbol.upper()
+        ).delete()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': f'Deleted {deleted_count} history entries for {symbol.upper()}'
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error deleting stock history: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': f'Failed to delete stock history: {str(e)}'}), 500
+
+@app.route('/api/analysis-history', methods=['DELETE'])
+@jwt_required()
+def delete_all_history():
+    """Delete all analysis history for the current user"""
+    try:
+        user_id = get_jwt_identity()
+        user_id_int = int(user_id) if isinstance(user_id, str) else user_id
+        
+        # Delete all history entries for this user
+        deleted_count = AnalysisHistory.query.filter(
+            AnalysisHistory.user_id == user_id_int
+        ).delete()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': f'Deleted {deleted_count} history entries'
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error deleting all history: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': f'Failed to delete all history: {str(e)}'}), 500
+
 # Explicit OPTIONS handler for watchlist endpoints
 @app.route('/api/watchlists', methods=['OPTIONS'])
 @app.route('/api/watchlists/<int:watchlist_id>', methods=['OPTIONS'])
@@ -766,6 +887,17 @@ def watchlists_options(watchlist_id=None, symbol=None):
     resp.headers['Access-Control-Allow-Origin'] = '*'
     resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, DELETE, OPTIONS'
+    resp.headers['Access-Control-Max-Age'] = '3600'
+    return resp
+
+# Explicit OPTIONS handler for analysis history endpoints
+@app.route('/api/analysis-history', methods=['OPTIONS'])
+@app.route('/api/analysis-history/<symbol>', methods=['OPTIONS'])
+def analysis_history_options(symbol=None):
+    resp = Response(status=200)
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    resp.headers['Access-Control-Allow-Methods'] = 'GET, DELETE, OPTIONS'
     resp.headers['Access-Control-Max-Age'] = '3600'
     return resp
 

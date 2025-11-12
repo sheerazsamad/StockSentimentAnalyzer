@@ -23,6 +23,8 @@ class User(db.Model):
     
     # Relationship to favorites
     favorite_stocks = db.relationship('FavoriteStock', backref='user', lazy=True, cascade='all, delete-orphan')
+    # Relationship to analysis history
+    analysis_history = db.relationship('AnalysisHistory', backref='user', lazy=True, cascade='all, delete-orphan')
     
     def set_password(self, password):
         """Hash and set the user's password"""
@@ -96,5 +98,32 @@ class WatchlistStock(db.Model):
             'id': self.id,
             'symbol': self.symbol,
             'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+class AnalysisHistory(db.Model):
+    __tablename__ = 'analysis_history'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    symbol = db.Column(db.String(10), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    sentiment = db.Column(db.Float, nullable=False)
+    confidence = db.Column(db.Float, nullable=False)
+    grade = db.Column(db.String(10), nullable=False)
+    
+    # Index for faster queries
+    __table_args__ = (
+        db.Index('idx_user_symbol_timestamp', 'user_id', 'symbol', 'timestamp'),
+    )
+    
+    def to_dict(self):
+        """Convert analysis history entry to dictionary"""
+        return {
+            'id': self.id,
+            'symbol': self.symbol,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'sentiment': self.sentiment,
+            'confidence': self.confidence,
+            'grade': self.grade
         }
 

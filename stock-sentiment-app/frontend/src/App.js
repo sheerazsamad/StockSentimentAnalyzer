@@ -73,32 +73,45 @@ const StockSentimentApp = () => {
     }
   };
 
-  // Load analysis history from localStorage on mount
-  useEffect(() => {
+  const fetchAnalysisHistory = async () => {
     try {
-      const savedHistory = localStorage.getItem('analysisHistory');
-      if (savedHistory) {
-        setAnalysisHistory(JSON.parse(savedHistory));
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const response = await fetch(`${apiUrl}/api/analysis-history`, {
+        headers: {
+          ...getAuthHeaders(),
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAnalysisHistory(data.history || {});
+        // Also save to localStorage as backup
+        try {
+          localStorage.setItem('analysisHistory', JSON.stringify(data.history || {}));
+        } catch (error) {
+          console.error('Error saving to localStorage:', error);
+        }
       }
     } catch (error) {
-      console.error('Error loading analysis history:', error);
+      console.error('Error fetching analysis history:', error);
+      // Fallback to localStorage if backend fetch fails
+      try {
+        const savedHistory = localStorage.getItem('analysisHistory');
+        if (savedHistory) {
+          setAnalysisHistory(JSON.parse(savedHistory));
+        }
+      } catch (e) {
+        console.error('Error loading from localStorage:', e);
+      }
     }
-  }, []);
+  };
 
-  // Save analysis history to localStorage whenever it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem('analysisHistory', JSON.stringify(analysisHistory));
-    } catch (error) {
-      console.error('Error saving analysis history:', error);
-    }
-  }, [analysisHistory]);
-
-  // Fetch favorites and watchlists when authenticated - MUST be before any early returns
+  // Fetch favorites, watchlists, and analysis history when authenticated - MUST be before any early returns
   useEffect(() => {
     if (isAuthenticated) {
       fetchFavorites();
       fetchWatchlists();
+      fetchAnalysisHistory();
       // Ensure dashboard is shown when authenticated
       setShowDashboard(true);
       setShowFavorites(false);
@@ -106,6 +119,14 @@ const StockSentimentApp = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
+
+  // Refresh analysis history when dashboard is shown
+  useEffect(() => {
+    if (isAuthenticated && showDashboard) {
+      fetchAnalysisHistory();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showDashboard, isAuthenticated]);
 
   // Show loading state while checking authentication
   if (authLoading) {
@@ -196,42 +217,9 @@ const StockSentimentApp = () => {
       const data = await response.json();
       setResults(data);
       
-      // Save to analysis history
-      if (data.results && Array.isArray(data.results)) {
-        const today = new Date().toDateString();
-        setAnalysisHistory(prevHistory => {
-          const newHistory = { ...prevHistory };
-          data.results.forEach(stock => {
-            if (!newHistory[stock.symbol]) {
-              newHistory[stock.symbol] = [];
-            }
-            
-            // Check if there's already an entry for today with the same sentiment and confidence
-            const existingToday = newHistory[stock.symbol].find(entry => {
-              const entryDate = new Date(entry.timestamp).toDateString();
-              return entryDate === today &&
-                     Math.abs(entry.sentiment - stock.sentiment.overall_score) < 0.001 &&
-                     Math.abs(entry.confidence - stock.sentiment.confidence) < 0.001;
-            });
-            
-            // Only add if it's not a duplicate
-            if (!existingToday) {
-              const timestamp = new Date().toISOString();
-              newHistory[stock.symbol].push({
-                timestamp,
-                sentiment: stock.sentiment.overall_score,
-                confidence: stock.sentiment.confidence,
-                grade: stock.sentiment.grade,
-              });
-              // Keep only last 30 entries per stock
-              if (newHistory[stock.symbol].length > 30) {
-                newHistory[stock.symbol] = newHistory[stock.symbol].slice(-30);
-              }
-            }
-          });
-          return newHistory;
-        });
-      }
+      // Refresh analysis history from backend (backend automatically saves new analyses)
+      // This ensures we have the latest data including any deduplication
+      await fetchAnalysisHistory();
       
       // Refresh favorites to show correct heart state
       fetchFavorites();
@@ -488,19 +476,53 @@ const StockSentimentApp = () => {
     }, 50);
   };
 
-  const clearStockHistory = (symbol) => {
+  const clearStockHistory = async (symbol) => {
     if (window.confirm(`Are you sure you want to clear all history for ${symbol}?`)) {
-      setAnalysisHistory(prevHistory => {
-        const newHistory = { ...prevHistory };
-        delete newHistory[symbol];
-        return newHistory;
-      });
+      try {
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+        const response = await fetch(`${apiUrl}/api/analysis-history/${symbol}`, {
+          method: 'DELETE',
+          headers: {
+            ...getAuthHeaders(),
+          },
+        });
+
+        if (response.ok) {
+          // Refresh history from backend
+          await fetchAnalysisHistory();
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          setError(errorData.error || 'Failed to clear history');
+        }
+      } catch (error) {
+        console.error('Error clearing stock history:', error);
+        setError('Failed to clear history. Please try again.');
+      }
     }
   };
 
-  const clearAllHistory = () => {
+  const clearAllHistory = async () => {
     if (window.confirm('Are you sure you want to clear all analysis history? This cannot be undone.')) {
-      setAnalysisHistory({});
+      try {
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+        const response = await fetch(`${apiUrl}/api/analysis-history`, {
+          method: 'DELETE',
+          headers: {
+            ...getAuthHeaders(),
+          },
+        });
+
+        if (response.ok) {
+          // Refresh history from backend
+          await fetchAnalysisHistory();
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          setError(errorData.error || 'Failed to clear history');
+        }
+      } catch (error) {
+        console.error('Error clearing all history:', error);
+        setError('Failed to clear history. Please try again.');
+      }
     }
   };
 
@@ -515,10 +537,12 @@ const StockSentimentApp = () => {
           </div>
           <div className="flex items-center gap-4">
             <button
-              onClick={() => {
+              onClick={async () => {
                 setShowDashboard(true);
                 setShowFavorites(false);
                 setShowWatchlists(false);
+                // Refresh analysis history when returning to dashboard
+                await fetchAnalysisHistory();
               }}
               className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
               title="Go to Dashboard"
