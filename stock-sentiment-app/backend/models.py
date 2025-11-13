@@ -1,6 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
-from datetime import datetime
+from datetime import datetime, timezone
 
 db = SQLAlchemy()
 bcrypt = Bcrypt()
@@ -118,10 +118,22 @@ class AnalysisHistory(db.Model):
     
     def to_dict(self):
         """Convert analysis history entry to dictionary"""
+        # Ensure timestamp is timezone-aware and includes 'Z' suffix for UTC
+        timestamp_str = None
+        if self.timestamp:
+            if self.timestamp.tzinfo is None:
+                # If timezone-naive, assume it's UTC and make it timezone-aware
+                timestamp_aware = self.timestamp.replace(tzinfo=timezone.utc)
+                timestamp_str = timestamp_aware.isoformat().replace('+00:00', 'Z')
+            else:
+                # Already timezone-aware, convert to UTC if needed
+                timestamp_aware = self.timestamp.astimezone(timezone.utc)
+                timestamp_str = timestamp_aware.isoformat().replace('+00:00', 'Z')
+        
         return {
             'id': self.id,
             'symbol': self.symbol,
-            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'timestamp': timestamp_str,
             'sentiment': self.sentiment,
             'confidence': self.confidence,
             'grade': self.grade

@@ -39,9 +39,14 @@ const SentimentChart = ({ history, symbol }) => {
   );
 
   const labels = sortedHistory.map((entry, index) => {
+    // Parse the UTC timestamp and convert to user's local timezone
     const date = new Date(entry.timestamp);
-    // Show date in a readable format
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    // toLocaleDateString() automatically uses the user's local timezone
+    // This ensures the date shown matches when the user actually analyzed it in their timezone
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric'
+    });
   });
 
   const sentimentData = sortedHistory.map(entry => entry.sentiment);
