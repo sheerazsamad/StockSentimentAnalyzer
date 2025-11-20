@@ -30,3 +30,4 @@ flask-bcrypt==1.0.1
 flask-sqlalchemy==3.1.1
 sqlalchemy==2.0.23
 email-validator==2.1.0
+psycopg2-binary==2.9.9
