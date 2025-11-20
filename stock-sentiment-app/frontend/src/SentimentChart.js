@@ -44,12 +44,18 @@ const SentimentChart = ({ history, symbol }) => {
   // Create data points with timestamps for proper time-based spacing
   const sentimentData = sortedHistory.map(entry => ({
     x: new Date(entry.timestamp).getTime(), // Use timestamp for x-axis
-    y: entry.sentiment
+    y: entry.sentiment,
+    timestamp: entry.timestamp, // Store timestamp for tooltip
+    sentiment: entry.sentiment,
+    confidence: entry.confidence
   }));
 
   const confidenceData = sortedHistory.map(entry => ({
     x: new Date(entry.timestamp).getTime(), // Use timestamp for x-axis
-    y: entry.confidence
+    y: entry.confidence,
+    timestamp: entry.timestamp, // Store timestamp for tooltip
+    sentiment: entry.sentiment,
+    confidence: entry.confidence
   }));
 
   const data = {
@@ -104,6 +110,40 @@ const SentimentChart = ({ history, symbol }) => {
         bodyColor: 'rgb(209, 213, 219)',
         borderColor: 'rgb(75, 85, 99)',
         borderWidth: 1,
+        callbacks: {
+          title: function(context) {
+            // Show formatted date and time in tooltip title
+            if (context.length > 0 && context[0].raw.timestamp) {
+              const date = new Date(context[0].raw.timestamp);
+              const dateStr = date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+              });
+              const timeStr = date.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+              });
+              return `${dateStr}, ${timeStr}`;
+            }
+            return '';
+          },
+          label: function(context) {
+            const label = context.dataset.label || '';
+            const value = context.parsed.y;
+            
+            // Format the value based on dataset
+            let formattedValue;
+            if (label === 'Sentiment Score') {
+              formattedValue = value.toFixed(3);
+            } else {
+              formattedValue = (value * 100).toFixed(1) + '%';
+            }
+            
+            return `${label}: ${formattedValue}`;
+          }
+        }
       },
     },
     scales: {
@@ -112,9 +152,11 @@ const SentimentChart = ({ history, symbol }) => {
         time: {
           unit: 'day',
           displayFormats: {
-            day: 'MMM d'
+            day: 'MMM d',
+            hour: 'MMM d, h:mm a',
+            minute: 'MMM d, h:mm a'
           },
-          tooltipFormat: 'MMM d, yyyy'
+          tooltipFormat: 'MMM d, yyyy h:mm a'
         },
         grid: {
           color: 'rgba(75, 85, 99, 0.3)',

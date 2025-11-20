@@ -1340,18 +1340,21 @@ class EnhancedStockSentimentAnalyzer:
             'low': 0.4
         }
     
-    async def analyze_stock_comprehensive(self, symbol: str) -> Dict:
+    async def analyze_stock_comprehensive(self, symbol: str, force_refresh: bool = False) -> Dict:
         """Comprehensive stock analysis with all enhancements"""
-        logger.info(f"Starting comprehensive analysis for {symbol}")
+        logger.info(f"Starting comprehensive analysis for {symbol} (force_refresh={force_refresh})")
         
-        # Check cache first with dynamic TTL based on trading hours
-        cache_key = get_cache_key(symbol)
-        cache_ttl = get_cache_ttl()
-        cached_result = self.cache_manager.get(cache_key, ttl=cache_ttl)
-        if cached_result:
-            trading_status = "trading hours" if is_trading_hours_est() else "non-trading hours"
-            logger.info(f"Using cached result for {symbol} (TTL: {cache_ttl//60} min, {trading_status})")
-            return cached_result
+        # Check cache first with dynamic TTL based on trading hours (unless force_refresh is True)
+        if not force_refresh:
+            cache_key = get_cache_key(symbol)
+            cache_ttl = get_cache_ttl()
+            cached_result = self.cache_manager.get(cache_key, ttl=cache_ttl)
+            if cached_result:
+                trading_status = "trading hours" if is_trading_hours_est() else "non-trading hours"
+                logger.info(f"Using cached result for {symbol} (TTL: {cache_ttl//60} min, {trading_status})")
+                return cached_result
+        else:
+            logger.info(f"Force refresh requested for {symbol}, bypassing cache")
         
         try:
             # Collect data with logging (optimized for free tier - reduced limits)

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, TrendingUp, TrendingDown, Minus, AlertCircle, Clock, BarChart3, ExternalLink, LogOut, User, Star, Eye, Plus, X, LayoutDashboard } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, Minus, AlertCircle, Clock, BarChart3, ExternalLink, LogOut, User, Star, Eye, Plus, X, LayoutDashboard, RefreshCw } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import Login from './Login';
 import Register from './Register';
@@ -170,7 +170,7 @@ const StockSentimentApp = () => {
   }
 
   // Define analyzeStocks before it's used
-  const analyzeStocks = async (symbolsToAnalyze = null) => {
+  const analyzeStocks = async (symbolsToAnalyze = null, forceRefresh = false) => {
     // Ensure we always have an array
     const symbolsToUse = Array.isArray(symbolsToAnalyze) ? symbolsToAnalyze : (Array.isArray(symbols) ? symbols : []);
     const validSymbols = symbolsToUse.filter(s => s && s.trim && s.trim().length > 0);
@@ -200,7 +200,7 @@ const StockSentimentApp = () => {
           'Content-Type': 'application/json',
           ...authHeaders,
         },
-        body: JSON.stringify({ symbols: validSymbols }),
+        body: JSON.stringify({ symbols: validSymbols, force_refresh: forceRefresh }),
         signal: controller.signal
       });
       
@@ -238,6 +238,11 @@ const StockSentimentApp = () => {
       // Refresh analysis history from backend (backend automatically saves new analyses)
       // This ensures we have the latest data including any deduplication
       await fetchAnalysisHistory();
+      
+      // Log if force refresh was used
+      if (forceRefresh) {
+        console.log(`Force refresh completed for: ${validSymbols.join(', ')}`);
+      }
       
       // Refresh favorites to show correct heart state
       fetchFavorites();
@@ -943,6 +948,28 @@ const StockSentimentApp = () => {
                       showChartFor === stock.symbol 
                         ? 'text-blue-500' 
                         : 'text-gray-400 hover:text-blue-400'
+                    }`} />
+                  </button>
+                  
+                  {/* Refresh analysis button - positioned below other icons */}
+                  <button
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (loading) return; // Prevent multiple clicks
+                      
+                      // Force refresh this specific stock - bypasses cache
+                      await analyzeStocks([stock.symbol], true);
+                    }}
+                    className="absolute top-16 right-4 p-2 hover:bg-gray-700 rounded-full transition-colors z-10"
+                    title="Refresh analysis (bypasses cache)"
+                    type="button"
+                    disabled={loading}
+                  >
+                    <RefreshCw className={`w-5 h-5 transition-colors ${
+                      loading 
+                        ? 'text-gray-500 animate-spin' 
+                        : 'text-gray-400 hover:text-green-400'
                     }`} />
                   </button>
                   

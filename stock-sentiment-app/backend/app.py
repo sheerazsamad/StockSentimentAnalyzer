@@ -366,13 +366,16 @@ def analyze_stocks():
         if not symbols or not isinstance(symbols, list):
             return jsonify({'error': 'Invalid symbols format'}), 400
         
+        # Check for force_refresh flag (bypasses cache)
+        force_refresh = data.get('force_refresh', False)
+        
         # Limit to 5 symbols to prevent timeout
         symbols = symbols[:5]
         
         user_id = get_jwt_identity()
         # Handle both string and int formats (for backward compatibility)
         user_id_int = int(user_id) if isinstance(user_id, str) else user_id
-        logger.info(f"User {user_id_int} analyzing symbols: {symbols}")
+        logger.info(f"User {user_id_int} analyzing symbols: {symbols} (force_refresh={force_refresh})")
         
         # Get analyzer instance
         sentiment_analyzer = get_analyzer()
@@ -388,7 +391,7 @@ def analyze_stocks():
                 # Add timeout to prevent hanging (60 seconds per symbol - optimized for free tier)
                 async def analyze_with_timeout():
                     logger.info(f"Inside analyze_with_timeout for {symbol}")
-                    return await sentiment_analyzer.analyze_stock_comprehensive(symbol.upper())
+                    return await sentiment_analyzer.analyze_stock_comprehensive(symbol.upper(), force_refresh=force_refresh)
                 
                 try:
                     logger.info(f"Starting async execution for {symbol}")
