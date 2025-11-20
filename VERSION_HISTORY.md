@@ -4,10 +4,7 @@
 - Added refresh analysis button that bypasses cache to force fresh analysis
 - Refresh button positioned below other action icons to prevent overlap
 - Enhanced chart tooltips with detailed timestamps (date and time in title)
-- Removed redundant footer from chart tooltips for cleaner display
-- Fixed icon overlap issues (watchlist, chart, and refresh buttons now properly spaced)
 - Refresh functionality works for individual stocks without affecting other displayed results
-- Chart tooltips now show formatted timestamps next to date instead of scores
 
 ## v1.8.0 - Trading Hours Aware Caching
 - Implemented dynamic caching based on trading hours (9:30 AM - 4:00 PM EST)
