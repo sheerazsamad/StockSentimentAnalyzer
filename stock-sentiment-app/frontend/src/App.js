@@ -112,10 +112,17 @@ const StockSentimentApp = () => {
       fetchFavorites();
       fetchWatchlists();
       fetchAnalysisHistory();
-      // Ensure dashboard is shown when authenticated
-      setShowDashboard(true);
+      // When user first authenticates, show dashboard by default
+      // But allow them to navigate back to home if they want
+      if (!showHome) {
+        setShowDashboard(true);
+      }
       setShowFavorites(false);
       setShowWatchlists(false);
+    } else {
+      // When not authenticated, show home by default
+      setShowHome(true);
+      setShowDashboard(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
@@ -141,14 +148,25 @@ const StockSentimentApp = () => {
   }
 
   // Show home page or login/register if not authenticated
-  if (!isAuthenticated) {
+  // Also allow showing home page when authenticated (for back button)
+  if (!isAuthenticated || showHome) {
     if (showHome && !showRegister) {
-      return <Home onGetStarted={() => setShowHome(false)} />;
+      return <Home onGetStarted={() => {
+        setShowHome(false);
+        if (!isAuthenticated) {
+          // If not authenticated, show login after clicking Get Started
+        } else {
+          // If authenticated, show dashboard
+          setShowDashboard(true);
+        }
+      }} />;
     }
     if (showRegister) {
       return <Register onSwitchToLogin={() => setShowRegister(false)} />;
     }
-    return <Login onSwitchToRegister={() => setShowRegister(true)} />;
+    if (!isAuthenticated) {
+      return <Login onSwitchToRegister={() => setShowRegister(true)} />;
+    }
   }
 
   // Define analyzeStocks before it's used
@@ -237,7 +255,7 @@ const StockSentimentApp = () => {
   };
 
   // Show dashboard if authenticated and showDashboard is true
-  if (showDashboard) {
+  if (showDashboard && isAuthenticated) {
     return (
       <Dashboard
         onStartAnalyzing={(symbols) => {
@@ -252,6 +270,10 @@ const StockSentimentApp = () => {
         favorites={favorites}
         watchlists={watchlists}
         analysisHistory={analysisHistory}
+        onBackToHome={() => {
+          setShowDashboard(false);
+          setShowHome(true);
+        }}
       />
     );
   }
