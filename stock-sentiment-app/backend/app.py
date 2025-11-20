@@ -50,10 +50,66 @@ jwt = JWTManager(app)
 # Initialize database tables (runs on app startup, including with gunicorn)
 with app.app_context():
     try:
+        # Log database connection info (without sensitive data) BEFORE any operations
+        db_url = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        if db_url:
+            # Mask password in URL for logging but keep host info
+            if '@' in db_url:
+                # Extract host and database name for identification
+                parts = db_url.split('@')
+                if len(parts) > 1:
+                    host_part = parts[1].split('/')
+                    if len(host_part) > 1:
+                        db_name = host_part[-1].split('?')[0]  # Remove query params
+                        host_info = host_part[0]
+                        logger.info(f"🔗 Connecting to database: {db_name} on {host_info}")
+                    else:
+                        logger.info(f"🔗 Database connection: {parts[1]}")
+                else:
+                    logger.info(f"🔗 Database connection: {parts[0]}")
+            else:
+                logger.info(f"🔗 Database connection: local SQLite")
+        
+        # Check if database already has data before creating tables
+        # Use inspect() instead of deprecated has_table()
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        existing_tables = inspector.get_table_names()
+        has_users_table = 'users' in existing_tables
+        
+        existing_users = 0
+        if has_users_table:
+            try:
+                existing_users = User.query.count()
+                logger.info(f"📊 Found {existing_users} existing users in database")
+            except Exception as e:
+                logger.warning(f"Could not count existing users: {e}")
+        
+        # Create tables (only creates if they don't exist - does NOT drop existing tables)
+        # This is safe - it will NOT delete or modify existing data
         db.create_all()
-        logger.info("Database tables initialized")
+        logger.info("✅ Database tables verified/created")
+        
+        # Verify data persistence after table creation
+        new_user_count = User.query.count()
+        if existing_users > 0 and new_user_count == 0:
+            logger.error("=" * 60)
+            logger.error("⚠️  CRITICAL: DATA LOSS DETECTED!")
+            logger.error(f"⚠️  Had {existing_users} users before, now has {new_user_count}")
+            logger.error("⚠️  This usually means:")
+            logger.error("   1. DATABASE_URL environment variable changed")
+            logger.error("   2. PostgreSQL service was recreated on Render")
+            logger.error("   3. Database service is not properly linked to web service")
+            logger.error("=" * 60)
+        elif existing_users > 0:
+            logger.info(f"✅ Data persistence verified: {new_user_count} users (was {existing_users})")
+        else:
+            logger.info(f"📝 Database initialized: {new_user_count} users (new or empty database)")
+            
     except Exception as e:
-        logger.error(f"Error initializing database: {e}")
+        logger.error(f"❌ Error initializing database: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
 
 # Configure CORS to allow preflight OPTIONS requests
 # This must be configured before JWT to allow OPTIONS requests to bypass authentication
@@ -496,11 +552,63 @@ def create_fallback_result(symbol, error_msg):
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
+    analyzer = get_analyzer()
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now(timezone.utc).isoformat(),
         'analyzer_ready': analyzer is not None
     })
+
+@app.route('/api/version-history', methods=['GET'])
+def get_version_history():
+    """Get version history"""
+    try:
+        # VERSION_HISTORY.md is in the project root (two levels up from backend/)
+        version_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'VERSION_HISTORY.md')
+        
+        if not os.path.exists(version_file):
+            return jsonify({
+                'error': 'Version history not found'
+            }), 404
+        
+        with open(version_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Parse the markdown into structured data
+        versions = []
+        current_version = None
+        current_description = []
+        
+        for line in content.split('\n'):
+            line = line.strip()
+            if line.startswith('## v'):
+                # Save previous version if exists
+                if current_version:
+                    versions.append({
+                        'version': current_version,
+                        'description': '\n'.join(current_description).strip()
+                    })
+                
+                # Start new version
+                current_version = line.replace('## ', '')
+                current_description = []
+            elif line and current_version and not line.startswith('#'):
+                current_description.append(line)
+        
+        # Add last version
+        if current_version:
+            versions.append({
+                'version': current_version,
+                'description': '\n'.join(current_description).strip()
+            })
+        
+        return jsonify({
+            'versions': versions
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error reading version history: {str(e)}")
+        return jsonify({'error': f'Failed to get version history: {str(e)}'}), 500
 
 @app.route('/api/symbols/<symbol>', methods=['GET'])
 @jwt_required()

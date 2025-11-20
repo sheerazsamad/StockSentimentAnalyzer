@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Star, Eye, BarChart3, ArrowRight, Search, LogOut } from 'lucide-react';
+import { TrendingUp, Star, Eye, BarChart3, ArrowRight, Search, LogOut, GitBranch, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
 const Dashboard = ({ onStartAnalyzing, favorites, watchlists, analysisHistory }) => {
   const { user, logout } = useAuth();
   const [recentStocks, setRecentStocks] = useState([]);
+  const [versionHistory, setVersionHistory] = useState([]);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
   useEffect(() => {
     // Get recent stocks from analysis history
@@ -20,6 +25,26 @@ const Dashboard = ({ onStartAnalyzing, favorites, watchlists, analysisHistory })
 
     setRecentStocks(historyEntries);
   }, [analysisHistory]);
+
+  useEffect(() => {
+    // Fetch version history
+    const fetchVersionHistory = async () => {
+      setLoadingVersions(true);
+      try {
+        const response = await fetch(`${apiUrl}/api/version-history`);
+        if (response.ok) {
+          const data = await response.json();
+          setVersionHistory(data.versions || []);
+        }
+      } catch (error) {
+        console.error('Error fetching version history:', error);
+      } finally {
+        setLoadingVersions(false);
+      }
+    };
+
+    fetchVersionHistory();
+  }, [apiUrl]);
 
   const totalAnalyses = Object.values(analysisHistory || {}).reduce((sum, data) => sum + data.length, 0);
   const uniqueStocks = Object.keys(analysisHistory || {}).length;
@@ -199,6 +224,69 @@ const Dashboard = ({ onStartAnalyzing, favorites, watchlists, analysisHistory })
               )}
             </div>
           </div>
+        </div>
+
+        {/* Version History Section */}
+        <div className="mt-8 bg-gray-800 rounded-lg border border-gray-700">
+          <button
+            onClick={() => setShowVersionHistory(!showVersionHistory)}
+            className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-700 transition-colors rounded-lg"
+          >
+            <div className="flex items-center gap-3">
+              <GitBranch className="w-6 h-6 text-blue-400" />
+              <h2 className="text-2xl font-bold">Version History</h2>
+            </div>
+            {showVersionHistory ? (
+              <ChevronUp className="w-5 h-5 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-400" />
+            )}
+          </button>
+
+          {showVersionHistory && (
+            <div className="px-6 pb-6">
+              {loadingVersions ? (
+                <div className="text-center py-8 text-gray-400">
+                  <p>Loading version history...</p>
+                </div>
+              ) : versionHistory.length > 0 ? (
+                <div className="space-y-4 mt-4">
+                  {versionHistory.map((version, index) => (
+                    <div
+                      key={index}
+                      className="bg-gray-700 rounded-lg p-4 border border-gray-600"
+                    >
+                      <h3 className="text-lg font-semibold text-blue-400 mb-2">
+                        {version.version}
+                      </h3>
+                      <div className="text-gray-300 text-sm">
+                        {version.description.split('\n').map((line, lineIndex) => {
+                          const trimmedLine = line.trim();
+                          if (!trimmedLine) return null;
+                          return (
+                            <div key={lineIndex} className="mb-1 flex items-start">
+                              {trimmedLine.startsWith('-') ? (
+                                <>
+                                  <span className="text-gray-400 mr-2">•</span>
+                                  <span>{trimmedLine.substring(1).trim()}</span>
+                                </>
+                              ) : (
+                                <span>{trimmedLine}</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  <p>No version history available.</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

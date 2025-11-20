@@ -3,6 +3,7 @@ import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
+  TimeScale,
   PointElement,
   LineElement,
   Title,
@@ -10,11 +11,13 @@ import {
   Legend,
   Filler
 } from 'chart.js';
+import 'chartjs-adapter-date-fns';
 import { Line } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
+  TimeScale,
   PointElement,
   LineElement,
   Title,
@@ -38,22 +41,18 @@ const SentimentChart = ({ history, symbol }) => {
     new Date(a.timestamp) - new Date(b.timestamp)
   );
 
-  const labels = sortedHistory.map((entry, index) => {
-    // Parse the UTC timestamp and convert to user's local timezone
-    const date = new Date(entry.timestamp);
-    // toLocaleDateString() automatically uses the user's local timezone
-    // This ensures the date shown matches when the user actually analyzed it in their timezone
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric'
-    });
-  });
+  // Create data points with timestamps for proper time-based spacing
+  const sentimentData = sortedHistory.map(entry => ({
+    x: new Date(entry.timestamp).getTime(), // Use timestamp for x-axis
+    y: entry.sentiment
+  }));
 
-  const sentimentData = sortedHistory.map(entry => entry.sentiment);
-  const confidenceData = sortedHistory.map(entry => entry.confidence);
+  const confidenceData = sortedHistory.map(entry => ({
+    x: new Date(entry.timestamp).getTime(), // Use timestamp for x-axis
+    y: entry.confidence
+  }));
 
   const data = {
-    labels,
     datasets: [
       {
         label: 'Sentiment Score',
@@ -109,12 +108,25 @@ const SentimentChart = ({ history, symbol }) => {
     },
     scales: {
       x: {
+        type: 'time',
+        time: {
+          unit: 'day',
+          displayFormats: {
+            day: 'MMM d'
+          },
+          tooltipFormat: 'MMM d, yyyy'
+        },
         grid: {
           color: 'rgba(75, 85, 99, 0.3)',
         },
         ticks: {
           color: 'rgb(156, 163, 175)',
+          maxRotation: 45,
+          minRotation: 45,
         },
+        title: {
+          display: false
+        }
       },
       y: {
         type: 'linear',
