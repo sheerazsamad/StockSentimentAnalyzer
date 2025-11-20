@@ -142,7 +142,7 @@ const SentimentChart = ({ history, symbol }) => {
         },
         ticks: {
           color: 'rgb(156, 163, 175)',
-          stepSize: 0.1,
+          stepSize: 0.2,
         },
         min: -1.2,
         max: 1.2,
