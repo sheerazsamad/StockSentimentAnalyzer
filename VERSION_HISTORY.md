@@ -1,5 +1,14 @@
 # Version History
 
+## v1.8.0 - Trading Hours Aware Caching
+- Implemented dynamic caching based on trading hours (9:30 AM - 4:00 PM EST)
+- Cache TTL is 15 minutes during trading hours for fresher data
+- Cache TTL is 2 hours outside trading hours to reduce API calls
+- Cache keys use 15-minute intervals during trading hours, hourly intervals otherwise
+- Trading hours detection uses EST/EDT timezone with automatic DST handling
+- All data point timestamps remain in UTC for consistency
+- Improved cache granularity ensures more frequent updates during active market hours
+
 ## v1.7.0 - UI Navigation Improvements
 - Moved version history section from dashboard to landing page for better visibility
 - Added back button to dashboard to navigate back to landing page

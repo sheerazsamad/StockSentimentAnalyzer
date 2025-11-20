@@ -4,6 +4,15 @@ import numpy as np
 import time
 from datetime import datetime, timedelta, timezone
 import warnings
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    # Fallback for Python < 3.9 - try backports or use manual EST calculation
+    try:
+        from backports.zoneinfo import ZoneInfo
+    except ImportError:
+        # Manual fallback - will use UTC offset calculation
+        ZoneInfo = None
 from urllib.parse import quote
 import asyncio
 from dataclasses import dataclass
@@ -63,13 +72,71 @@ class SentimentData:
     keywords: List[str] = None
     aspects: Dict[str, float] = None
 
+def is_trading_hours_est() -> bool:
+    """Check if current time is within trading hours (9:30 AM - 4:00 PM EST)"""
+    try:
+        if ZoneInfo is not None:
+            # Get current time in EST/EDT (America/New_York handles DST automatically)
+            est = ZoneInfo("America/New_York")
+            now_est = datetime.now(est)
+        else:
+            # Fallback: manually calculate EST/EDT offset
+            # EST is UTC-5, EDT is UTC-4 (rough approximation, doesn't handle DST perfectly)
+            now_utc = datetime.now(timezone.utc)
+            # Simple approximation: assume EDT (UTC-4) for March-November, EST (UTC-5) otherwise
+            month = now_utc.month
+            if 3 <= month <= 11:
+                offset_hours = 4  # EDT
+            else:
+                offset_hours = 5  # EST
+            est_offset = timedelta(hours=offset_hours)
+            now_est = now_utc - est_offset
+        
+        # Check if it's a weekday (Monday=0, Sunday=6)
+        if now_est.weekday() >= 5:  # Saturday or Sunday
+            return False
+        
+        # Check if time is between 9:30 AM and 4:00 PM EST
+        current_time = now_est.time()
+        market_open = datetime.strptime("09:30", "%H:%M").time()
+        market_close = datetime.strptime("16:00", "%H:%M").time()
+        
+        return market_open <= current_time < market_close
+    except Exception as e:
+        logger.warning(f"Error checking trading hours: {e}, defaulting to non-trading hours")
+        return False
+
+def get_cache_ttl() -> int:
+    """Get cache TTL based on trading hours: 15 minutes during trading hours, 2 hours otherwise"""
+    if is_trading_hours_est():
+        return 900  # 15 minutes in seconds
+    else:
+        return 7200  # 2 hours in seconds
+
+def get_cache_key(symbol: str) -> str:
+    """Generate cache key with appropriate granularity based on trading hours"""
+    now_utc = datetime.now(timezone.utc)
+    
+    if is_trading_hours_est():
+        # During trading hours: use 15-minute intervals
+        # Round down to nearest 15 minutes
+        minutes = (now_utc.minute // 15) * 15
+        cache_time = now_utc.replace(minute=minutes, second=0, microsecond=0)
+        time_str = cache_time.strftime('%Y%m%d_%H%M')
+    else:
+        # Outside trading hours: use hourly intervals
+        cache_time = now_utc.replace(minute=0, second=0, microsecond=0)
+        time_str = cache_time.strftime('%Y%m%d_%H')
+    
+    return f"analysis_{symbol}_{time_str}"
+
 class CacheManager:
     """Enhanced caching system using Redis and local cache"""
     
     def __init__(self, use_redis=False):
         self.use_redis = use_redis
         self.local_cache = {}
-        self.cache_ttl = 7200  # 2 hours default TTL (optimized for free tier)
+        self.cache_ttl = 7200  # 2 hours default TTL (fallback)
         
         if use_redis:
             try:
@@ -80,8 +147,11 @@ class CacheManager:
                 logger.warning("Redis not available, using local cache only")
                 self.use_redis = False
     
-    def get(self, key: str):
+    def get(self, key: str, ttl: int = None):
         """Get cached value"""
+        # Use dynamic TTL if provided, otherwise use default
+        effective_ttl = ttl if ttl is not None else get_cache_ttl()
+        
         if self.use_redis:
             try:
                 data = self.redis_client.get(key)
@@ -92,19 +162,20 @@ class CacheManager:
         # Fallback to local cache
         if key in self.local_cache:
             data, timestamp = self.local_cache[key]
-            if datetime.now(timezone.utc) - timestamp < timedelta(seconds=self.cache_ttl):
+            if datetime.now(timezone.utc) - timestamp < timedelta(seconds=effective_ttl):
                 return data
             else:
                 del self.local_cache[key]
         return None
     
     def set(self, key: str, value, ttl: int = None):
-        """Set cached value"""
-        ttl = ttl or self.cache_ttl
+        """Set cached value with dynamic TTL based on trading hours"""
+        # Use provided TTL, or get dynamic TTL based on trading hours
+        effective_ttl = ttl if ttl is not None else get_cache_ttl()
         
         if self.use_redis:
             try:
-                self.redis_client.setex(key, ttl, pickle.dumps(value))
+                self.redis_client.setex(key, effective_ttl, pickle.dumps(value))
                 return
             except:
                 pass
@@ -1273,11 +1344,13 @@ class EnhancedStockSentimentAnalyzer:
         """Comprehensive stock analysis with all enhancements"""
         logger.info(f"Starting comprehensive analysis for {symbol}")
         
-        # Check cache first (optimized: cache by hour for 2-hour TTL)
-        cache_key = f"analysis_{symbol}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H')}"
-        cached_result = self.cache_manager.get(cache_key)
+        # Check cache first with dynamic TTL based on trading hours
+        cache_key = get_cache_key(symbol)
+        cache_ttl = get_cache_ttl()
+        cached_result = self.cache_manager.get(cache_key, ttl=cache_ttl)
         if cached_result:
-            logger.info(f"Using cached result for {symbol}")
+            trading_status = "trading hours" if is_trading_hours_est() else "non-trading hours"
+            logger.info(f"Using cached result for {symbol} (TTL: {cache_ttl//60} min, {trading_status})")
             return cached_result
         
         try:
@@ -1419,8 +1492,11 @@ class EnhancedStockSentimentAnalyzer:
                 stock_info.get('volume')
             )
             
-            # Cache result
-            self.cache_manager.set(cache_key, result, ttl=3600)
+            # Cache result with dynamic TTL based on trading hours
+            cache_ttl = get_cache_ttl()
+            self.cache_manager.set(cache_key, result, ttl=cache_ttl)
+            trading_status = "trading hours" if is_trading_hours_est() else "non-trading hours"
+            logger.info(f"Cached result for {symbol} with {cache_ttl//60} min TTL ({trading_status})")
             
             logger.info(f"Comprehensive analysis completed for {symbol}")
             return result
