@@ -1,5 +1,11 @@
 # Version History
 
+## v1.7.0 - UI Navigation Improvements
+- Moved version history section from dashboard to landing page for better visibility
+- Added back button to dashboard to navigate back to landing page
+- Improved navigation flow between landing page and dashboard
+- Version history now accessible to all users (authenticated and unauthenticated) on landing page
+
 ## v1.6.0 - Enhanced Database Persistence & Data Loss Prevention
 - Fixed database initialization code to use correct SQLAlchemy API (inspect instead of deprecated has_table)
 - Added comprehensive logging to track database connections and detect data loss
