@@ -90,6 +90,43 @@ with app.app_context():
         db.create_all()
         logger.info("✅ Database tables verified/created")
         
+        # Fix analysis_history table if id column is not auto-incrementing (PostgreSQL issue)
+        try:
+            from sqlalchemy import text
+            # Check if we're using PostgreSQL
+            if 'postgresql' in database_url.lower():
+                # Check if the id column has a default (sequence)
+                result = db.session.execute(text("""
+                    SELECT column_default 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'analysis_history' 
+                    AND column_name = 'id'
+                """))
+                row = result.fetchone()
+                
+                if row and (row[0] is None or 'nextval' not in str(row[0])):
+                    logger.warning("⚠️  analysis_history.id column missing auto-increment, fixing...")
+                    # Create sequence if it doesn't exist
+                    db.session.execute(text("""
+                        CREATE SEQUENCE IF NOT EXISTS analysis_history_id_seq;
+                    """))
+                    # Set the sequence as default for id column
+                    db.session.execute(text("""
+                        ALTER TABLE analysis_history 
+                        ALTER COLUMN id SET DEFAULT nextval('analysis_history_id_seq');
+                    """))
+                    # Set the sequence to start from the max id + 1 (if any rows exist)
+                    db.session.execute(text("""
+                        SELECT setval('analysis_history_id_seq', 
+                            COALESCE((SELECT MAX(id) FROM analysis_history), 0) + 1, 
+                            false);
+                    """))
+                    db.session.commit()
+                    logger.info("✅ Fixed analysis_history.id auto-increment")
+        except Exception as e:
+            logger.warning(f"Could not fix analysis_history schema (may not be needed): {e}")
+            db.session.rollback()
+        
         # Verify data persistence after table creation
         new_user_count = User.query.count()
         if existing_users > 0 and new_user_count == 0:
