@@ -1344,10 +1344,12 @@ class EnhancedStockSentimentAnalyzer:
         """Comprehensive stock analysis with all enhancements"""
         logger.info(f"Starting comprehensive analysis for {symbol} (force_refresh={force_refresh})")
         
+        # Get cache key and TTL (needed for caching result later, even if we bypass cache check)
+        cache_key = get_cache_key(symbol)
+        cache_ttl = get_cache_ttl()
+        
         # Check cache first with dynamic TTL based on trading hours (unless force_refresh is True)
         if not force_refresh:
-            cache_key = get_cache_key(symbol)
-            cache_ttl = get_cache_ttl()
             cached_result = self.cache_manager.get(cache_key, ttl=cache_ttl)
             if cached_result:
                 trading_status = "trading hours" if is_trading_hours_est() else "non-trading hours"
@@ -1496,7 +1498,6 @@ class EnhancedStockSentimentAnalyzer:
             )
             
             # Cache result with dynamic TTL based on trading hours
-            cache_ttl = get_cache_ttl()
             self.cache_manager.set(cache_key, result, ttl=cache_ttl)
             trading_status = "trading hours" if is_trading_hours_est() else "non-trading hours"
             logger.info(f"Cached result for {symbol} with {cache_ttl//60} min TTL ({trading_status})")
