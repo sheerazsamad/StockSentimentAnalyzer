@@ -422,12 +422,17 @@ def analyze_stocks():
             today_start = datetime.combine(now.date(), datetime.min.time()).replace(tzinfo=timezone.utc)
             today_end = datetime.combine(now.date(), datetime.max.time()).replace(tzinfo=timezone.utc)
             
+            saved_count = 0
+            skipped_count = 0
+            
             for result in results:
                 symbol = result.get('symbol', '').upper()
                 sentiment_data = result.get('sentiment', {})
                 sentiment_score = float(sentiment_data.get('overall_score', 0))
                 confidence = float(sentiment_data.get('confidence', 0))
                 grade = str(sentiment_data.get('grade', 'N/A'))
+                
+                logger.info(f"Attempting to save analysis for {symbol}: sentiment={sentiment_score}, confidence={confidence}, grade={grade}")
                 
                 # Check if there's already an entry for today with the same sentiment and confidence
                 existing_entry = AnalysisHistory.query.filter(
@@ -450,11 +455,17 @@ def analyze_stocks():
                         grade=grade
                     )
                     db.session.add(analysis_entry)
+                    saved_count += 1
+                    logger.info(f"Added new analysis entry for {symbol} (user {user_id_int})")
+                else:
+                    skipped_count += 1
+                    logger.info(f"Skipped duplicate entry for {symbol} (user {user_id_int}) - already exists with same sentiment/confidence today")
             
             db.session.commit()
-            logger.info(f"Saved {len(results)} analysis results to database for user {user_id_int}")
+            logger.info(f"Saved {saved_count} new analysis entries, skipped {skipped_count} duplicates for user {user_id_int}")
         except Exception as e:
             logger.error(f"Error saving analysis history: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             db.session.rollback()
             # Don't fail the request if history save fails
         
@@ -498,7 +509,7 @@ def transform_result(backend_result):
         ]
         
         return {
-            'symbol': str(backend_result.get('symbol', '')),
+            'symbol': str(backend_result.get('symbol', '')).upper(),
             'sentiment': {
                 'overall_score': float(backend_result['sentiment']['overall_score']),
                 'confidence': float(backend_result['sentiment']['confidence']),
@@ -927,10 +938,10 @@ def get_analysis_history():
             AnalysisHistory.user_id == user_id_int
         ).order_by(AnalysisHistory.timestamp.desc()).all()
         
-        # Group by symbol
+        # Group by symbol (normalize to uppercase for consistency)
         history_by_symbol = {}
         for entry in history_entries:
-            symbol = entry.symbol
+            symbol = entry.symbol.upper()  # Normalize to uppercase
             if symbol not in history_by_symbol:
                 history_by_symbol[symbol] = []
             history_by_symbol[symbol].append(entry.to_dict())

@@ -1073,7 +1073,7 @@ const StockSentimentApp = () => {
                         </div>
                       </div>
                       <SentimentChart 
-                        history={analysisHistory[stock.symbol] || []} 
+                        history={analysisHistory[stock.symbol.toUpperCase()] || []} 
                         symbol={stock.symbol}
                       />
                     </div>
